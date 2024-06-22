@@ -23,5 +23,8 @@
     "ts-node": "^10.9.2",
     "tsup": "^8.1.0",
     "typescript": "^5.5.2"
+  },
+  "dependencies": {
+    "temporal-polyfill": "^0.2.5"
   }
 }
