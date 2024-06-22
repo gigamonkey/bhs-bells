@@ -1,12 +1,12 @@
-export type Year = {
+export type YearData = {
   year: string;
   firstDayTeachers: string;
   firstDay: string;
   lastDay: string;
   schedules: {
-    NORMAL: Period[];
-    LATE_START: Period[];
-    [key: string]: Period[];
+    NORMAL: PeriodData[];
+    LATE_START: PeriodData[];
+    [key: string]: PeriodData[];
   };
   holidays: string[];
   breakNames: {
@@ -14,7 +14,7 @@ export type Year = {
   };
 };
 
-export type Period = {
+export type PeriodData = {
   name: string;
   start: string;
   end: string;
@@ -22,7 +22,7 @@ export type Period = {
   nonSchool?: boolean;
 };
 
-export const calendars: Year[] = [
+export const calendars: YearData[] = [
   {
     year: '2024-2025',
     firstDayTeachers: '2024-08-12',
