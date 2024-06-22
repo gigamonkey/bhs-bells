@@ -1,5 +1,5 @@
 import './monkeypatch-date.ts';
-import { calendars, YearData, PeriodData } from './calendars.ts';
+import { calendars, YearData, PeriodData, HolidayData } from './calendars.ts';
 import { Temporal } from 'temporal-polyfill';
 
 /*
@@ -9,7 +9,6 @@ import { Temporal } from 'temporal-polyfill';
  * specified and returns Temporal objects (?) when dates, times, and durations
  * need to be returned.
  */
-
 
 // Temporal.ZonedDateTime - for actual times when things happen, e.g. start of
 // year, start of day, end of day, etc.
@@ -26,7 +25,59 @@ import { Temporal } from 'temporal-polyfill';
 // millisecond timestamp.
 
 
+type Schedules = {
+  NORMAL: Period[];
+  LATE_START: Period[];
+  [key: string]: Period[];
+};
+
+export type Period = {
+  name: string;
+  start: Temporal.PlainTime;
+  end: Temporal.PlainTime;
+  teachersOnly: boolean;
+  nonSchool: boolean;
+};
+
+export type Holiday = {
+  name: String;
+  start: Temporal.PlainDate;
+  end: Temporal.PlainDate;
+};
+
+const period = (data: PeriodData): Period => {
+  return {
+    name: data.name,
+    start: time(data.start),
+    end: time(data.end),
+    teachersOnly: data?.teachers ?? false,
+    nonSchool: data?.nonSchool ?? false,
+  };
+};
+
+const time = (s: string): Temporal.PlainTime => {
+  const [ h, m ] = s.split(':').map(Number);
+  return new Temporal.PlainTime(h, m);
+};
+
+const holiday = (d: HolidayData): Holiday => {
+  return {
+    name: d.name,
+    start: Temporal.PlainDate.from(d.start),
+    end: Temporal.PlainDate.from(d.end ?? d.start),
+  };
+};
+
 export class Year {
+
+  year: string;
+  firstDayTeachers: Temporal.PlainDate;
+  firstDay: Temporal.PlainDate;
+  lastDay: Temporal.PlainDate;
+
+  schedules: Schedules;
+
+  holidays: Holiday[];
 
   static current() {
     // FIXME: use current time to figure out when the "current" year is. During
@@ -34,14 +85,18 @@ export class Year {
     return new Year(calendars[0]);
   }
 
-  data: YearData;
-
   constructor(data: YearData) {
-    this.data = data;
-  }
+    this.year = data.year;
+    this.firstDayTeachers = Temporal.PlainDate.from(data.firstDayTeachers);
+    this.firstDay = Temporal.PlainDate.from(data.firstDay);
+    this.lastDay = Temporal.PlainDate.from(data.lastDay);
+    this.schedules = Object.fromEntries(
+      Object.entries(data.schedules).map(([label, data]) => {
+        return [ label, data.map((d: PeriodData) => period(d)) ];
+      })
+    ) as Schedules;
 
-  year() {
-    return this.data.year;
+    this.holidays = data.holidays.map(holiday);
   }
 
   isSchoolDay(date: Date): boolean {

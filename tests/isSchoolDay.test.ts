@@ -6,5 +6,5 @@ test('thinks every day is a school day', () => {
 });
 
 test('knows the year', () => {
-  expect(Year.current().year()).toBe("2024-2025");
+  expect(Year.current().year).toBe("2024-2025");
 });
