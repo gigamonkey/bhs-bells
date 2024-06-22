@@ -2,6 +2,8 @@ import './monkeypatch-date.ts';
 import { calendars, YearData, PeriodData, HolidayData } from './calendars.ts';
 import { Temporal } from 'temporal-polyfill';
 
+const TZ = 'America/Los_Angeles';
+
 /*
  * Goal: make a Year class that is wrapped around the Year data from
  * calendars.ts but which provides methods that take times as Date, timestamp,
@@ -45,6 +47,9 @@ export type Holiday = {
   end: Temporal.PlainDate;
 };
 
+// Maybe want to support classic Date? and timestamps? Not sure.
+type DateDesignator = string | Temporal.PlainDate;
+
 const period = (data: PeriodData): Period => {
   return {
     name: data.name,
@@ -68,6 +73,11 @@ const holiday = (d: HolidayData): Holiday => {
   };
 };
 
+const asDate = (date: DateDesignator): Temporal.PlainDate => {
+  return typeof date === 'string' ? Temporal.PlainDate.from(date) : date;
+}
+
+
 export class Year {
 
   year: string;
@@ -80,7 +90,6 @@ export class Year {
   holidays: Holiday[];
 
   static current() {
-    // FIXME: use current time to figure out when the "current" year is. During
     // the summer should be the next year.
     return new Year(calendars[0]);
   }
@@ -103,6 +112,21 @@ export class Year {
     return true;
   }
 
+  scheduleFor(date: DateDesignator): Period[] {
+    const d = asDate(date)
+    const s = d.toString();
+    if (s in this.schedules) {
+      return this.schedules[s];
+    } else {
+      return this.schedules[d.dayOfWeek === 1 ? 'LATE_START' : 'NORMAL'];
+    }
+  }
+
+  startOfYear(): Temporal.ZonedDateTime {
+    // FIXME: deal with teacher start of year
+    const plainTime = this.scheduleFor(this.firstDay)[0].start;
+    return this.firstDay.toZonedDateTime({ timeZone: TZ, plainTime })
+  }
 }
 
 export { calendars };
