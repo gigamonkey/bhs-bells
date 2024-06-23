@@ -1,3 +1,4 @@
+import { Temporal } from 'temporal-polyfill';
 import { Year } from '../src';
 
 test('thinks every day is a school day', () => {

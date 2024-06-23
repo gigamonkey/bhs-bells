@@ -1,5 +1,5 @@
 import './monkeypatch-date.ts';
-import { calendars, YearData, PeriodData, HolidayData } from './calendars.ts';
+import { calendar, YearData, PeriodData, HolidayData } from './calendars.ts';
 import { Temporal } from 'temporal-polyfill';
 
 const TZ = 'America/Los_Angeles';
@@ -26,6 +26,7 @@ const TZ = 'America/Los_Angeles';
 // Temporal.PlainDate.from('2022-02-28')) or a javascript Date or a raw
 // millisecond timestamp.
 
+type Time = Temporal.Instant | Temporal.ZonedDateTime;
 
 type Schedules = {
   NORMAL: Period[];
@@ -61,7 +62,7 @@ const period = (data: PeriodData): Period => {
 };
 
 const time = (s: string): Temporal.PlainTime => {
-  const [ h, m ] = s.split(':').map(Number);
+  const [h, m] = s.split(':').map(Number);
   return new Temporal.PlainTime(h, m);
 };
 
@@ -75,7 +76,7 @@ const holiday = (d: HolidayData): Holiday => {
 
 const asDate = (date: DateDesignator): Temporal.PlainDate => {
   return typeof date === 'string' ? Temporal.PlainDate.from(date) : date;
-}
+};
 
 type ExtraPeriods = typeof NO_EXTRA;
 
@@ -91,16 +92,20 @@ const NO_EXTRA = {
 
 const numToDay = (n: number): Day => {
   switch (n) {
-    case 1: return 'monday';
-    case 2: return 'tuesday';
-    case 3: return 'wednesday';
-    case 4: return 'thursday';
-    case 5: return 'friday';
+    case 1:
+      return 'monday';
+    case 2:
+      return 'tuesday';
+    case 3:
+      return 'wednesday';
+    case 4:
+      return 'thursday';
+    case 5:
+      return 'friday';
     default:
       throw new Error(`Illegal day number: ${n}`);
   }
 };
-
 
 type Opts = {
   teacher: boolean;
@@ -113,7 +118,6 @@ type Opts = {
  * the teacher view and also any extra periods you care about.
  */
 export class Year {
-
   year: string;
   firstDay: Temporal.PlainDate;
   lastDay: Temporal.PlainDate;
@@ -123,9 +127,9 @@ export class Year {
 
   holidays: Holiday[];
 
-  static current() {
-    // the summer should be the next year.
-    return new Year(calendars[0]);
+  // For the moment we'll just keep things simple and only support one current calendar.
+  static current(opts?: Opts): Year {
+    return new Year(calendar, opts);
   }
 
   constructor(data: YearData, opts?: Opts) {
@@ -142,8 +146,8 @@ export class Year {
     this.lastDay = Temporal.PlainDate.from(data.lastDay);
     this.schedules = Object.fromEntries(
       Object.entries(data.schedules).map(([label, data]) => {
-        return [ label, data.map((d: PeriodData) => period(d)) ];
-      })
+        return [label, data.map((d: PeriodData) => period(d))];
+      }),
     ) as Schedules;
 
     this.holidays = data.holidays.map(holiday);
@@ -154,15 +158,16 @@ export class Year {
   }
 
   scheduleFor(date: DateDesignator): Period[] {
-    const d = asDate(date)
+    const d = asDate(date);
     const s = d.toString();
     const day = numToDay(d.dayOfWeek);
 
-    const sched = s in this.schedules
-      ? this.schedules[s]
-      : this.schedules[day === 'monday' ? 'LATE_START' : 'NORMAL'];
+    const sched =
+      s in this.schedules
+        ? this.schedules[s]
+        : this.schedules[day === 'monday' ? 'LATE_START' : 'NORMAL'];
 
-    return sched.filter(p => this.hasPeriod(p.name, day));
+    return sched.filter((p) => this.hasPeriod(p.name, day));
   }
 
   hasPeriod(name: string, day: Day): boolean {
@@ -178,10 +183,22 @@ export class Year {
   }
 
   startOfYear(): Temporal.ZonedDateTime {
-    // FIXME: deal with teacher start of year
     const plainTime = this.scheduleFor(this.firstDay)[0].start;
-    return this.firstDay.toZonedDateTime({ timeZone: TZ, plainTime })
+    return this.firstDay.toZonedDateTime({ timeZone: TZ, plainTime });
+  }
+
+  endOfYear(): Temporal.ZonedDateTime {
+    const plainTime = this.scheduleFor(this.firstDay)[0].start;
+    return this.lastDay.toZonedDateTime({ timeZone: TZ, plainTime });
+  }
+
+  contains(t: Time): boolean {
+    if (t instanceof Temporal.Instant) {
+      t = t.toZonedDateTimeISO(TZ);
+    }
+    const cmp = Temporal.ZonedDateTime.compare;
+    const start = this.startOfYear();
+    const end = this.endOfYear();
+    return cmp(start, t) <= 0 && cmp(t, end) < 0;
   }
 }
-
-export { calendars };
