@@ -78,6 +78,11 @@ const asDate = (date: DateDesignator): Temporal.PlainDate => {
   return typeof date === 'string' ? Temporal.PlainDate.from(date) : date;
 };
 
+const during = (holiday: Holiday, date: Temporal.PlainDate) => {
+  const cmp = Temporal.PlainDate.compare;
+  return cmp(holiday.start, date) <= 0 && cmp(date, holiday.end) <= 0;
+};
+
 type ExtraPeriods = typeof NO_EXTRA;
 
 type Day = keyof ExtraPeriods;
@@ -107,11 +112,39 @@ const numToDay = (n: number): Day => {
   }
 };
 
+const asZDT = (t: Time) => {
+  return t instanceof Temporal.Instant ? t.toZonedDateTimeISO(TZ) : t;
+};
+
+const zdtCmp = Temporal.ZonedDateTime.compare;
+
+const between = (t1: Time, t2: Time, t3: Time): boolean => {
+  t1 = asZDT(t1);
+  t2 = asZDT(t2);
+  t3 = asZDT(t3);
+  return zdtCmp(t1, t2) <= 0 && zdtCmp(t2, t3) < 0;
+};
+
 type Opts = {
   teacher: boolean;
   extraPeriods: ExtraPeriods;
 };
 
+class Interval {
+  name: String;
+  start: Temporal.ZonedDateTime;
+  end: Temporal.ZonedDateTime;
+
+  constructor(name: String, start: Temporal.ZonedDateTime, end: Temporal.ZonedDateTime) {
+    this.name = name;
+    this.start = start;
+    this.end = end;
+  }
+
+  contains(t: Temporal.ZonedDateTime) {
+    return between(this.start, t, this.end);
+  }
+}
 /*
  * A school year. Knows about when we have school and what the scedule is on
  * each day. Constructed with some options that control whether you care about
@@ -122,9 +155,7 @@ export class Year {
   firstDay: Temporal.PlainDate;
   lastDay: Temporal.PlainDate;
   extraPeriods: ExtraPeriods;
-
   schedules: Schedules;
-
   holidays: Holiday[];
 
   // For the moment we'll just keep things simple and only support one current calendar.
@@ -153,24 +184,41 @@ export class Year {
     this.holidays = data.holidays.map(holiday);
   }
 
-  isSchoolDay(date: Date): boolean {
-    return true;
+  isSchoolDay(date: DateDesignator): boolean {
+    date = asDate(date);
+
+    return (
+      Temporal.PlainDate.compare(this.firstDay, date) <= 0 &&
+      Temporal.PlainDate.compare(date, this.lastDay) <= 0 &&
+      date.dayOfWeek < 6 &&
+      !this.isHoliday(date)
+    );
+  }
+
+  isHoliday(date: DateDesignator): boolean {
+    date = asDate(date);
+    return this.holidays.some((h) => during(h, date));
   }
 
   scheduleFor(date: DateDesignator): Period[] {
-    const d = asDate(date);
-    const s = d.toString();
-    const day = numToDay(d.dayOfWeek);
+    date = asDate(date);
 
-    const sched =
-      s in this.schedules
-        ? this.schedules[s]
-        : this.schedules[day === 'monday' ? 'LATE_START' : 'NORMAL'];
+    if (!this.isSchoolDay(date)) {
+      return [];
+    } else {
+      const s = date.toString();
+      const day = numToDay(date.dayOfWeek);
 
-    return sched.filter((p) => this.hasPeriod(p.name, day));
+      const sched =
+        s in this.schedules
+          ? this.schedules[s]
+          : this.schedules[day === 'monday' ? 'LATE_START' : 'NORMAL'];
+
+      return sched.filter((p) => this.#hasPeriod(p.name, day));
+    }
   }
 
-  hasPeriod(name: string, day: Day): boolean {
+  #hasPeriod(name: string, day: Day): boolean {
     if (name === 'Period 0') {
       return this.extraPeriods[day].zero;
     } else if (name === 'Period 7') {
@@ -192,13 +240,81 @@ export class Year {
     return this.lastDay.toZonedDateTime({ timeZone: TZ, plainTime });
   }
 
-  contains(t: Time): boolean {
-    if (t instanceof Temporal.Instant) {
-      t = t.toZonedDateTimeISO(TZ);
+  startOfPeriodOn(period: String, date: DateDesignator): Temporal.ZonedDateTime | undefined {
+    date = asDate(date);
+    const p = this.scheduleFor(date)?.find((p) => p.name === period);
+    if (typeof p !== 'undefined') {
+      return date.toZonedDateTime({ timeZone: TZ, plainTime: p.start });
     }
-    const cmp = Temporal.ZonedDateTime.compare;
-    const start = this.startOfYear();
-    const end = this.endOfYear();
-    return cmp(start, t) <= 0 && cmp(t, end) < 0;
+  }
+
+  endOfPeriodOn(period: String, date: DateDesignator): Temporal.ZonedDateTime | undefined {
+    date = asDate(date);
+    const p = this.scheduleFor(date)?.find((p) => p.name === period);
+    if (typeof p !== 'undefined') {
+      return date.toZonedDateTime({ timeZone: TZ, plainTime: p.start });
+    }
+  }
+
+  /*
+   * List of intervals that cover the whole given day.
+   */
+  intervals(date: DateDesignator): Interval[] {
+    date = asDate(date);
+
+    const zdt = (plainTime: Temporal.PlainTime) =>
+      date.toZonedDateTime({ timeZone: TZ, plainTime });
+
+    const sched = this.scheduleFor(date);
+    const startOfSchoolDay = zdt(sched[0].start);
+    const startOfDay = startOfSchoolDay.startOfDay();
+
+    const r = [];
+    r.push(new Interval('Before school', startOfDay, startOfSchoolDay));
+
+    for (let i = 0; i < sched.length; i++) {
+      const p = sched[i];
+      const periodEnd = zdt(p.end);
+      r.push(new Interval(p.name, zdt(p.start), periodEnd));
+      if (i + 1 < sched.length) {
+        const n = sched[i + 1];
+        const nextStart = zdt(n.start);
+        if (!periodEnd.equals(nextStart)) {
+          r.push(new Interval(`Passing to ${n.name}`, periodEnd, nextStart));
+        }
+      } else {
+        r.push(new Interval('After school', periodEnd, startOfDay.add({ days: 1 })));
+      }
+    }
+    return r;
+  }
+
+  daysLeft(date: DateDesignator) {
+    date = asDate(date);
+
+    if (Temporal.PlainDate.compare(date, this.firstDay) < 0) {
+      date = this.firstDay;
+    }
+
+    let count = 0;
+    while (Temporal.PlainDate.compare(date, this.lastDay) <= 0) {
+      if (this.isSchoolDay(date)) {
+        count++;
+      }
+      date = date.add({ days: 1 });
+    }
+    return count;
+  }
+
+  schoolDays() {
+    const r = [];
+    let date = this.firstDay;
+    while (Temporal.PlainDate.compare(date, this.lastDay) <= 0) {
+      if (this.isSchoolDay(date)) {
+        r.push(date);
+      }
+      date = date.add({ days: 1 });
+    }
+    return r;
   }
 }

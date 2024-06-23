@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "build": "tsup src/*.ts",
-    "test": "jest"
+    "test": "jest",
+    "check": "node dist/foo.js"
   },
   "keywords": [],
   "author": "Peter Seibel <peter@gigamonkeys.com>",
