@@ -333,5 +333,3 @@ export class Year {
     return r;
   }
 }
-
-export { Temporal };
