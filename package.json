@@ -1,7 +1,7 @@
 {
   "name": "bhs-bells",
   "type": "module",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -12,6 +12,10 @@
     "build": "tsup src/*.ts",
     "test": "jest",
     "check": "node dist/foo.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gigamonkey/bhs-bells.git"
   },
   "keywords": [],
   "author": "Peter Seibel <peter@gigamonkeys.com>",
@@ -28,5 +32,7 @@
   },
   "dependencies": {
     "temporal-polyfill": "^0.2.5"
-  }
+  },
+  "homepage": "https://github.com/gigamonkey/bhs-bells"
+
 }
