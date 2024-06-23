@@ -1,9 +1,9 @@
-import polyfill from 'temporal-polyfill';
+import { toTemporalInstant } from 'temporal-polyfill';
 
 declare global {
   interface Date {
-    toTemporalInstant: typeof polyfill.toTemporalInstant;
+    toTemporalInstant: typeof toTemporalInstant;
   }
 }
 
-Date.prototype.toTemporalInstant = polyfill.toTemporalInstant;
+Date.prototype.toTemporalInstant = toTemporalInstant;

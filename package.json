@@ -1,5 +1,6 @@
 {
   "name": "bhs-bells",
+  "type": "module",
   "version": "1.0.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
