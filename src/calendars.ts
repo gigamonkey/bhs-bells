@@ -3,6 +3,10 @@ export type YearData = {
   firstDayTeachers: string;
   firstDay: string;
   lastDay: string;
+  startOfSummer: {
+    students: string;
+    teachers: string;
+  };
   schedules: SchedulesData;
   holidays: HolidayData[];
 };
@@ -32,6 +36,10 @@ export const calendar: YearData = {
   firstDayTeachers: '2024-08-12',
   firstDay: '2024-08-14',
   lastDay: '2025-06-05',
+  startOfSummer: {
+    students: "2024-06-04T1242",
+    teachers: "2024-06-04T1533"
+  },
   schedules: {
     NORMAL: [
       { name: 'Period 0', start: '7:26', end: '8:24' },

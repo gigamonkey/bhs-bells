@@ -2,7 +2,7 @@ import './monkeypatch-date.ts';
 import { calendar, YearData, PeriodData, HolidayData } from './calendars.ts';
 import { Temporal } from 'temporal-polyfill';
 
-const TZ = 'America/Los_Angeles';
+export const TZ = 'America/Los_Angeles';
 
 /*
  * Goal: make a Year class that is wrapped around the Year data from
@@ -112,7 +112,7 @@ const numToDay = (n: number): Day => {
   }
 };
 
-const asZDT = (t: Time) => {
+const asZDT = (t: Time): Temporal.ZonedDateTime => {
   return t instanceof Temporal.Instant ? t.toZonedDateTimeISO(TZ) : t;
 };
 
@@ -154,6 +154,7 @@ export class Year {
   year: string;
   firstDay: Temporal.PlainDate;
   lastDay: Temporal.PlainDate;
+  startOfSummer: Temporal.ZonedDateTime;
   extraPeriods: ExtraPeriods;
   schedules: Schedules;
   holidays: Holiday[];
@@ -168,8 +169,10 @@ export class Year {
 
     if (opts?.teacher) {
       this.firstDay = Temporal.PlainDate.from(data.firstDayTeachers);
+      this.startOfSummer = Temporal.PlainDateTime.from(data.startOfSummer.teachers).toZonedDateTime(TZ);
     } else {
       this.firstDay = Temporal.PlainDate.from(data.firstDay);
+      this.startOfSummer = Temporal.PlainDateTime.from(data.startOfSummer.students).toZonedDateTime(TZ);
     }
 
     this.extraPeriods = opts?.extraPeriods ?? NO_EXTRA;
@@ -182,6 +185,14 @@ export class Year {
     ) as Schedules;
 
     this.holidays = data.holidays.map(holiday);
+  }
+
+  now() {
+    return Temporal.Now.zonedDateTimeISO(TZ);
+  }
+
+  time(s: string) {
+    return Temporal.Instant.from(s).toZonedDateTimeISO(TZ);
   }
 
   isSchoolDay(date: DateDesignator): boolean {
@@ -238,6 +249,10 @@ export class Year {
   endOfYear(): Temporal.ZonedDateTime {
     const plainTime = this.scheduleFor(this.firstDay)[0].start;
     return this.lastDay.toZonedDateTime({ timeZone: TZ, plainTime });
+  }
+
+  untilStartOfYear(time: Time): Temporal.Duration {
+    return asZDT(time).until(this.startOfYear());
   }
 
   startOfPeriodOn(period: String, date: DateDesignator): Temporal.ZonedDateTime | undefined {
@@ -318,3 +333,5 @@ export class Year {
     return r;
   }
 }
+
+export { Temporal };
