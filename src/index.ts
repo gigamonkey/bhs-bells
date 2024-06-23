@@ -77,13 +77,47 @@ const asDate = (date: DateDesignator): Temporal.PlainDate => {
   return typeof date === 'string' ? Temporal.PlainDate.from(date) : date;
 }
 
+type ExtraPeriods = typeof NO_EXTRA;
 
+type Day = keyof ExtraPeriods;
+
+const NO_EXTRA = {
+  monday: { zero: false, seventh: false, ext: false },
+  tuesday: { zero: false, seventh: false, ext: false },
+  wednesday: { zero: false, seventh: false, ext: false },
+  thursday: { zero: false, seventh: false, ext: false },
+  friday: { zero: false, seventh: false, ext: false },
+};
+
+const numToDay = (n: number): Day => {
+  switch (n) {
+    case 1: return 'monday';
+    case 2: return 'tuesday';
+    case 3: return 'wednesday';
+    case 4: return 'thursday';
+    case 5: return 'friday';
+    default:
+      throw new Error(`Illegal day number: ${n}`);
+  }
+};
+
+
+type Opts = {
+  teacher: boolean;
+  extraPeriods: ExtraPeriods;
+};
+
+/*
+ * A school year. Knows about when we have school and what the scedule is on
+ * each day. Constructed with some options that control whether you care about
+ * the teacher view and also any extra periods you care about.
+ */
 export class Year {
 
   year: string;
-  firstDayTeachers: Temporal.PlainDate;
   firstDay: Temporal.PlainDate;
   lastDay: Temporal.PlainDate;
+  extraPeriods: ExtraPeriods;
 
   schedules: Schedules;
 
@@ -94,10 +128,17 @@ export class Year {
     return new Year(calendars[0]);
   }
 
-  constructor(data: YearData) {
+  constructor(data: YearData, opts?: Opts) {
     this.year = data.year;
-    this.firstDayTeachers = Temporal.PlainDate.from(data.firstDayTeachers);
-    this.firstDay = Temporal.PlainDate.from(data.firstDay);
+
+    if (opts?.teacher) {
+      this.firstDay = Temporal.PlainDate.from(data.firstDayTeachers);
+    } else {
+      this.firstDay = Temporal.PlainDate.from(data.firstDay);
+    }
+
+    this.extraPeriods = opts?.extraPeriods ?? NO_EXTRA;
+
     this.lastDay = Temporal.PlainDate.from(data.lastDay);
     this.schedules = Object.fromEntries(
       Object.entries(data.schedules).map(([label, data]) => {
@@ -115,10 +156,24 @@ export class Year {
   scheduleFor(date: DateDesignator): Period[] {
     const d = asDate(date)
     const s = d.toString();
-    if (s in this.schedules) {
-      return this.schedules[s];
+    const day = numToDay(d.dayOfWeek);
+
+    const sched = s in this.schedules
+      ? this.schedules[s]
+      : this.schedules[day === 'monday' ? 'LATE_START' : 'NORMAL'];
+
+    return sched.filter(p => this.hasPeriod(p.name, day));
+  }
+
+  hasPeriod(name: string, day: Day): boolean {
+    if (name === 'Period 0') {
+      return this.extraPeriods[day].zero;
+    } else if (name === 'Period 7') {
+      return this.extraPeriods[day].seventh;
+    } else if (name === 'Period Ext') {
+      return this.extraPeriods[day].ext;
     } else {
-      return this.schedules[d.dayOfWeek === 1 ? 'LATE_START' : 'NORMAL'];
+      return true;
     }
   }
 
