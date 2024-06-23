@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsup src/*.ts",
     "test": "jest",
-    "check": "node dist/foo.js"
+    "check": "node dist/check.js"
   },
   "repository": {
     "type": "git",
